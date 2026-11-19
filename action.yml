@@ -30,14 +30,16 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        cd '${{ inputs.working-directory }}'
+        cd "${INPUTS_WORKING_DIRECTORY}"
         terraform init
+      env:
+        INPUTS_WORKING_DIRECTORY: ${{ inputs.working-directory }}
 
     - name: Terraform Destroy (Single or Loop)
       shell: bash
       run: |
         set -euo pipefail
-        cd '${{ inputs.working-directory }}'
+        cd "${INPUTS_WORKING_DIRECTORY}"
 
         run_destroy() {
           local workspace_name="$1"
@@ -52,7 +54,7 @@ runs:
           fi
 
           # Build destroy or plan -destroy command
-          if [[ '${{ inputs.plan-only }}' == 'true' ]]; then
+          if [[ "${INPUTS_PLAN_ONLY}" == 'true' ]]; then
             local plan_cmd=("plan" "-destroy" "-refresh=true" "-input=false" "-out=destroy.tfplan")
             if [[ -n "$tfvars_file_path" ]]; then
               plan_cmd+=("-var-file" "$tfvars_file_path")
@@ -61,8 +63,8 @@ runs:
             terraform "${plan_cmd[@]}"
           else
             local destroy_cmd=("destroy" "-auto-approve" "-refresh=true" "-input=false")
-            if [[ -n "${{ inputs.parallelism }}" ]]; then
-              destroy_cmd+=("-parallelism=${{ inputs.parallelism }}")
+            if [[ -n "${INPUTS_PARALLELISM}" ]]; then
+              destroy_cmd+=("-parallelism=${INPUTS_PARALLELISM}")
             fi
             if [[ -n "$tfvars_file_path" ]]; then
               destroy_cmd+=("-var-file" "$tfvars_file_path")
@@ -72,24 +74,31 @@ runs:
           fi
         }
 
-        if [[ '${{ inputs.loop-over-tfvars }}' == 'true' ]]; then
-          echo "==> Looping over tfvars files in '${{ inputs.var-file }}'"
-          for tfvars_file in "${{ inputs.var-file }}"/*.tfvars; do
+        if [[ "${INPUTS_LOOP_OVER_TFVARS}" == 'true' ]]; then
+          echo "==> Looping over tfvars files in '${INPUTS_VAR_FILE}'"
+          for tfvars_file in "${INPUTS_VAR_FILE}"/*.tfvars; do
             if [ -f "$tfvars_file" ]; then
               base_name=$(basename "$tfvars_file" .tfvars)
-              loop_workspace_name="${{ inputs.workspace }}-${base_name}"
+              loop_workspace_name="${INPUTS_WORKSPACE}-${base_name}"
               run_destroy "$loop_workspace_name" "$tfvars_file"
             fi
           done
         else
-          echo "==> Running single destroy for workspace '${{ inputs.workspace }}'"
+          echo "==> Running single destroy for workspace '${INPUTS_WORKSPACE}'"
           single_tfvars=""
-          if [[ -n '${{ inputs.var-file }}' ]]; then
-            if [[ -f '${{ inputs.var-file }}' ]]; then
-              single_tfvars='${{ inputs.var-file }}'
-            elif [[ -f "./${{ inputs.var-file }}" ]]; then
-              single_tfvars="./${{ inputs.var-file }}"
+          if [[ -n "${INPUTS_VAR_FILE}" ]]; then
+            if [[ -f "${INPUTS_VAR_FILE}" ]]; then
+              single_tfvars="${INPUTS_VAR_FILE}"
+            elif [[ -f "./${INPUTS_VAR_FILE}" ]]; then
+              single_tfvars="./${INPUTS_VAR_FILE}"
             fi
           fi
-          run_destroy "${{ inputs.workspace }}" "$single_tfvars"
+          run_destroy "${INPUTS_WORKSPACE}" "$single_tfvars"
         fi
+      env:
+        INPUTS_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        INPUTS_PLAN_ONLY: ${{ inputs.plan-only }}
+        INPUTS_PARALLELISM: ${{ inputs.parallelism }}
+        INPUTS_LOOP_OVER_TFVARS: ${{ inputs.loop-over-tfvars }}
+        INPUTS_VAR_FILE: ${{ inputs.var-file }}
+        INPUTS_WORKSPACE: ${{ inputs.workspace }}
